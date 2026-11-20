@@ -1,0 +1,48 @@
+# Copy to config.toml (gitignored). Credentials never live here: each broker
+# profile names the environment variables that hold them.
+
+symbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]
+state_file = "seen_signals.json"
+
+# Delivery to the cPanel Django hub. Remove this section to run console-only.
+[hub]
+base_url = "https://phyb.co.zw/fx"     # where the hub is mounted; no trailing slash
+secret_env = "FX_HUB_SECRET"           # env var holding the shared HMAC secret
+source = "scanner"
+outbox_file = "hub_outbox.json"        # signals wait here if the hub is unreachable
+
+[strategy]
+htf = "H4"                # trend + levels timeframe
+ltf = "H1"                # trigger timeframe
+pivot_n = 2               # bars each side to confirm a swing point
+swings = 3                # recent swing highs AND lows that must agree
+ma_filter = false
+ma_period = 50
+zone_atr_mult = 0.5       # zone width tolerance as a fraction of ATR
+min_touches = 2
+max_zones = 3
+stop_buffer_pips = 2.0    # covers spread; raise it for wide-spread symbols
+rr = 2.0
+max_stop_pips = 80.0
+
+[risk]
+balance = 1000.0
+risk_pct = 1.0
+pip_value_per_lot = 10.0  # USD-quoted pairs; adjust for JPY/cross pairs
+
+# One profile per broker. Names are yours to choose; pick with --broker.
+# Fill in the exact server name shown in your MT5 login dialog.
+[brokers.fusion]
+server = "FILL-IN-FUSION-DEMO-SERVER"
+login_env = "FUSION_MT5_LOGIN"
+password_env = "FUSION_MT5_PASSWORD"
+symbol_suffix = ""
+server_utc_offset_hours = 0     # broker server time vs UTC; check on a chart
+
+[brokers.justtrade]
+server = "FILL-IN-JUSTTRADE-DEMO-SERVER"
+login_env = "JUSTTRADE_MT5_LOGIN"
+password_env = "JUSTTRADE_MT5_PASSWORD"
+symbol_suffix = ""
+server_utc_offset_hours = 0
+# symbol_map = { XAUUSD = "GOLD" }   # use when a broker names symbols differently
