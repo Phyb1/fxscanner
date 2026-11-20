@@ -44,6 +44,7 @@ def scan_once(
     store: SeenStore,
     emit: Callable[[str], None] = print,
     publisher: Publisher | None = None,
+    verbose: bool = False,
 ) -> int:
     """Run one scan, emit new signals and errors. Returns the number of new signals."""
     if publisher is not None:
@@ -51,6 +52,11 @@ def scan_once(
         if flushed.sent:
             emit(f"hub: delivered {flushed.sent} queued signal(s)")
     result = scan(source, cfg.symbols, cfg.strategy)
+    if verbose:
+        stamp = datetime.now(UTC).strftime("%H:%M")
+        emit(f"--- scan {stamp} UTC ---")
+        for ev in result.evaluations:
+            emit(f"{ev.symbol}: {ev.label} | {ev.note}")
     new = store.filter_new(result.signals)
     for signal in new:
         emit(format_signal(signal, cfg.risk))
@@ -81,6 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p = sub.add_parser("scan", help="scan configured symbols for setups")
     p.add_argument("--config", type=Path, default=Path("config.toml"))
     p.add_argument("--broker", required=True, help="broker profile name from the config")
+    p.add_argument("-v", "--verbose", action="store_true", help="explain each pair every scan")
     p.add_argument("--interval", type=int, default=0, help="repeat every N seconds (0 = once)")
     args = parser.parse_args(argv)
 
@@ -93,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         publisher = build_publisher(cfg.hub)
         with MT5Source(profile) as source:
             while True:
-                scan_once(cfg, source, store, publisher=publisher)
+                scan_once(cfg, source, store, publisher=publisher, verbose=args.verbose)
                 if args.interval <= 0:
                     break
                 time.sleep(args.interval)

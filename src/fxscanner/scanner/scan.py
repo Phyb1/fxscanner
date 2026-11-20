@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from fxscanner.adapters.base import CandleSource, DataError
 from fxscanner.config import StrategyConfig
-from fxscanner.core.rules import build_signal
+from fxscanner.core.rules import Evaluation, evaluate
 from fxscanner.core.sizing import pip_size
 from fxscanner.models import Signal
 
@@ -14,6 +14,7 @@ from fxscanner.models import Signal
 class ScanResult:
     signals: list[Signal] = field(default_factory=list)
     errors: dict[str, str] = field(default_factory=dict)
+    evaluations: list[Evaluation] = field(default_factory=list)
 
 
 def scan(
@@ -30,10 +31,11 @@ def scan(
         try:
             htf = source.get_candles(symbol, cfg.htf, htf_bars)
             ltf = source.get_candles(symbol, cfg.ltf, ltf_bars)
-            signal = build_signal(symbol, htf, ltf, cfg, pip_for(symbol))
+            evaluation = evaluate(symbol, htf, ltf, cfg, pip_for(symbol))
         except (DataError, ValueError) as exc:
             result.errors[symbol] = str(exc)
             continue
-        if signal is not None:
-            result.signals.append(signal)
+        result.evaluations.append(evaluation)
+        if evaluation.signal is not None:
+            result.signals.append(evaluation.signal)
     return result

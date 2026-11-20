@@ -32,6 +32,7 @@ set FUSION_MT5_LOGIN=12345678
 set FUSION_MT5_PASSWORD=your-demo-password
 fxscan scan --broker fusion               # once
 fxscan scan --broker fusion --interval 600
+fxscan scan --broker fusion --interval 600 --verbose   # one explanatory line per pair
 ```
 
 ### Sending signals to the hub
@@ -63,8 +64,9 @@ pytest && ruff check . && mypy
 - `pip_value_per_lot` is one configured number. Real values differ for JPY and cross
   pairs; the executor stage should read it from the broker's symbol info.
 - Break-and-retest trigger is not implemented yet (pin bar and engulfing are).
-- MT5 adapter is unit-tested against a stub only. Verify it once on a real demo terminal.
-- Candle times are normalised with `server_utc_offset_hours`; check it against a chart.
+- MT5 adapter is unit-tested against a stub; it has been verified on a real Fusion demo terminal.
+- `server_utc_offset_hours = "auto"` detects the broker's time zone from a live tick (it follows
+  daylight saving). At weekends no fresh tick exists, so `offset_fallback_hours` applies.
 
 ## Next stages
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from fxscanner.config import StrategyConfig
 from fxscanner.core.indicators import atr, ma_agrees
@@ -26,36 +27,55 @@ def _trigger_name(prev: Candle, cur: Candle, side: Side, cfg: StrategyConfig) ->
     return None
 
 
-def build_signal(
+@dataclass(frozen=True)
+class Evaluation:
+    """What the rules concluded for one symbol, with a human-readable reason."""
+
+    symbol: str
+    trend: Trend
+    note: str
+    signal: Signal | None = None
+
+    @property
+    def label(self) -> str:
+        return {Trend.UP: "uptrend", Trend.DOWN: "downtrend", Trend.NONE: "no trend"}[self.trend]
+
+
+def evaluate(
     symbol: str,
     htf: Sequence[Candle],
     ltf: Sequence[Candle],
     cfg: StrategyConfig,
     pip: float,
-) -> Signal | None:
-    """Evaluate the trend-pullback rules on CLOSED candles only."""
+) -> Evaluation:
+    """Evaluate the trend-pullback rules on CLOSED candles only, explaining the outcome."""
     if len(ltf) < 2:
         raise ValueError("need at least 2 trigger-timeframe candles")
     pivots = find_pivots(htf[-cfg.zone_lookback :], cfg.pivot_n)
     trend = classify_trend(pivots, cfg.swings)
     if trend is Trend.NONE:
-        return None
+        return Evaluation(symbol, trend, "no clear trend; skipping")
     if cfg.ma_filter and not ma_agrees(
         [c.close for c in htf], trend, cfg.ma_period, cfg.ma_slope_lookback
     ):
-        return None
+        return Evaluation(symbol, trend, "trend fails the moving-average filter")
 
     side = Side.BUY if trend is Trend.UP else Side.SELL
+    kind = "support" if side is Side.BUY else "resistance"
     tolerance = atr(htf, cfg.atr_period) * cfg.zone_atr_mult
     zones = build_zones(pivots, tolerance, cfg.min_touches, cfg.max_zones)
+    if not zones:
+        return Evaluation(symbol, trend, f"no {kind} zones found")
     prev, cur = ltf[-2], ltf[-1]
     buffer = cfg.stop_buffer_pips * pip
+    note = ""
 
     for zone in sorted(zones, key=lambda z: abs(cur.close - z.mid)):
         if not _touches(zone, cur, side):
             continue
         trigger = _trigger_name(prev, cur, side, cfg)
         if trigger is None:
+            note = f"price is at a {kind} zone; waiting for a trigger candle"
             continue
         entry = cur.close
         if side is Side.BUY:
@@ -71,9 +91,16 @@ def build_signal(
             blockers = [z.high for z in zones if z.high < entry]
             blocked = bool(blockers) and max(blockers) > target
         risk_pips = risk / pip
-        if risk <= 0 or risk_pips > cfg.max_stop_pips or blocked:
+        if risk <= 0:
+            note = "trigger found but the stop is invalid"
             continue
-        return Signal(
+        if risk_pips > cfg.max_stop_pips:
+            note = f"trigger found but the stop is too wide ({risk_pips:.0f} pips)"
+            continue
+        if blocked:
+            note = f"trigger found but the next level is inside {cfg.rr:g}R"
+            continue
+        signal = Signal(
             symbol=symbol,
             side=side,
             entry=entry,
@@ -86,4 +113,36 @@ def build_signal(
             zone_low=zone.low,
             zone_high=zone.high,
         )
-    return None
+        return Evaluation(symbol, trend, f"SETUP ({trigger})", signal)
+    if note:
+        return Evaluation(symbol, trend, note)
+
+    digits = 3 if pip >= 0.01 else 5
+    if side is Side.BUY:
+        below = [z for z in zones if z.high < cur.close]
+        if not below:
+            return Evaluation(symbol, trend, f"no {kind} zone below price")
+        nearest = min(below, key=lambda z: cur.close - z.high)
+        pips, where = (cur.close - nearest.high) / pip, "above"
+    else:
+        above = [z for z in zones if z.low > cur.close]
+        if not above:
+            return Evaluation(symbol, trend, f"no {kind} zone above price")
+        nearest = min(above, key=lambda z: z.low - cur.close)
+        pips, where = (nearest.low - cur.close) / pip, "below"
+    return Evaluation(
+        symbol,
+        trend,
+        f"price is {pips:.0f} pips {where} {kind} "
+        f"{nearest.low:.{digits}f}-{nearest.high:.{digits}f}; waiting for a pullback",
+    )
+
+
+def build_signal(
+    symbol: str,
+    htf: Sequence[Candle],
+    ltf: Sequence[Candle],
+    cfg: StrategyConfig,
+    pip: float,
+) -> Signal | None:
+    return evaluate(symbol, htf, ltf, cfg, pip).signal

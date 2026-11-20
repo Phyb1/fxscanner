@@ -62,7 +62,16 @@ class BrokerProfile:
     terminal_path: str | None = None
     symbol_suffix: str = ""
     symbol_map: dict[str, str] = field(default_factory=dict)
-    server_utc_offset_hours: int = 0
+    # "auto" detects the broker's server time zone from a live tick; the fallback is
+    # used when detection is impossible (e.g. market closed at the weekend).
+    server_utc_offset_hours: int | str = "auto"
+    offset_fallback_hours: int = 0
+    timeout_ms: int = 60000
+
+    def __post_init__(self) -> None:
+        value = self.server_utc_offset_hours
+        if isinstance(value, str) and value != "auto":
+            raise ConfigError('server_utc_offset_hours must be a whole number or "auto"')
 
     def broker_symbol(self, symbol: str) -> str:
         return self.symbol_map.get(symbol, symbol + self.symbol_suffix)

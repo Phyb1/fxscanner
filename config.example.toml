@@ -37,12 +37,16 @@ server = "FILL-IN-FUSION-DEMO-SERVER"
 login_env = "FUSION_MT5_LOGIN"
 password_env = "FUSION_MT5_PASSWORD"
 symbol_suffix = ""
-server_utc_offset_hours = 0     # broker server time vs UTC; check on a chart
+server_utc_offset_hours = "auto"  # detected from a live tick; or a fixed whole number
+offset_fallback_hours = 2        # used only when detection is impossible (weekend)
+# terminal_path = 'C:\Program Files\MetaTrader 5\terminal64.exe'
+# timeout_ms = 60000
 
 [brokers.justtrade]
 server = "FILL-IN-JUSTTRADE-DEMO-SERVER"
 login_env = "JUSTTRADE_MT5_LOGIN"
 password_env = "JUSTTRADE_MT5_PASSWORD"
 symbol_suffix = ""
-server_utc_offset_hours = 0
+server_utc_offset_hours = "auto"
+offset_fallback_hours = 2
 # symbol_map = { XAUUSD = "GOLD" }   # use when a broker names symbols differently
