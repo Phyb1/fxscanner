@@ -27,3 +27,11 @@ def test_stronger_then_more_recent_zones_win() -> None:
 def test_invalid_tolerance_rejected() -> None:
     with pytest.raises(ValueError):
         build_zones([], tolerance=0)
+
+
+def test_wide_chain_is_split_not_merged() -> None:
+    # Prices 1.000, 1.001, ... 1.006 chain together at tolerance 0.0015 but span 0.006.
+    pivots = [Pivot(i, 1.0 + i * 0.001, True) for i in range(7)]
+    zones = build_zones(pivots, tolerance=0.0015, min_touches=1, max_zones=10)
+    assert all(z.high - z.low <= 0.0015 + 1e-12 for z in zones)
+    assert sum(z.touches for z in zones) == 7

@@ -71,6 +71,18 @@ plus slippage (`[backtest] slippage_pips`). If one candle touches both stop and 
 stop is assumed to hit first. One trade per pair at a time. Trades are saved to
 `backtest_trades.csv`. Fewer than 50 trades is flagged as too few to conclude anything.
 
+### Reading the report
+
+- Judge the method on 50 to 100+ trades. The report warns when there are fewer.
+- A pair or side that looks great in one backtest may just be the luckiest of several. Do not
+  pick winners after the fact; require a result to hold in both halves of the history.
+- The rules are mirror-symmetric: flipping a chart turns every buy into the identical sell.
+  `tests/test_symmetry.py` enforces this, so a buy/sell gap in results comes from the market
+  sample, not from the code.
+- Use `--spread` for repeatable runs. The live MT5 spread is a one-moment snapshot and can be
+  unrepresentative (for example 0.1 pip on EURUSD). Commission, if your account type charges
+  it, is not modelled.
+
 ## Development (any OS)
 
 ```
