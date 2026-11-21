@@ -6,3 +6,5 @@ __pycache__/
 config.toml
 seen_signals.json
 .env
+data/
+backtest_trades.csv

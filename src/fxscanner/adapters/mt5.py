@@ -69,17 +69,18 @@ class MT5Source:
                 self._mt5 = importlib.import_module("MetaTrader5")
             except ImportError as exc:
                 raise DataError("MetaTrader5 package not available (Windows only)") from exc
-        login, password = self._profile.credentials()
-        kwargs: dict[str, Any] = {
-            "login": login,
-            "password": password,
-            "server": self._profile.server,
-            "timeout": self._profile.timeout_ms,
-        }
+        kwargs: dict[str, Any] = {"timeout": self._profile.timeout_ms}
         if self._profile.terminal_path:
             kwargs["path"] = self._profile.terminal_path
+        if not self._profile.attach:
+            login, password = self._profile.credentials()
+            kwargs.update(login=login, password=password, server=self._profile.server)
         if not self._mt5.initialize(**kwargs):
             raise DataError(f"MT5 initialize failed: {self._mt5.last_error()}")
+        if self._profile.attach and self._mt5.account_info() is None:
+            raise DataError(
+                "MT5 is open but not logged in to any account; log in first (File > Login)"
+            )
 
     def close(self) -> None:
         if self._mt5 is not None:
@@ -96,6 +97,15 @@ class MT5Source:
         tb: TracebackType | None,
     ) -> None:
         self.close()
+
+    def spread_price(self, symbol: str) -> float:
+        """Current spread of ``symbol`` in price units."""
+        if self._mt5 is None:
+            raise DataError("call connect() first")
+        info = self._mt5.symbol_info(self._profile.broker_symbol(symbol))
+        if info is None:
+            raise DataError(f"no symbol info for {symbol}")
+        return float(info.spread) * float(info.point)
 
     def get_candles(self, symbol: str, timeframe: str, count: int) -> list[Candle]:
         if self._mt5 is None:

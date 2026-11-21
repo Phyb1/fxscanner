@@ -7,7 +7,7 @@ name = "fxscanner"
 version = "0.1.0"
 description = "Trend-pullback forex scanner with broker-agnostic MT5 adapter"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["python-decouple>=3.8"]
 
 [project.optional-dependencies]
 mt5 = ["MetaTrader5"]
@@ -33,3 +33,7 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.mypy]
 strict = true
 files = ["src"]
+
+[[tool.mypy.overrides]]
+module = "decouple"
+ignore_missing_imports = true

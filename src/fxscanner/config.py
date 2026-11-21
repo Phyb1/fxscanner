@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from fxscanner.env import read_env
 
 TIMEFRAMES = ("M5", "M15", "M30", "H1", "H4", "D1")
 
@@ -67,6 +68,8 @@ class BrokerProfile:
     server_utc_offset_hours: int | str = "auto"
     offset_fallback_hours: int = 0
     timeout_ms: int = 60000
+    # attach = true: use the account the MT5 terminal is already logged in to; no password needed.
+    attach: bool = False
 
     def __post_init__(self) -> None:
         value = self.server_utc_offset_hours
@@ -77,11 +80,12 @@ class BrokerProfile:
         return self.symbol_map.get(symbol, symbol + self.symbol_suffix)
 
     def credentials(self) -> tuple[int, str]:
-        login = os.environ.get(self.login_env)
-        password = os.environ.get(self.password_env)
+        login = read_env(self.login_env)
+        password = read_env(self.password_env)
         if not login or not password:
             raise ConfigError(
-                f"set {self.login_env} and {self.password_env} for broker {self.name!r}"
+                f"set {self.login_env} and {self.password_env} in .env or the environment "
+                f"for broker {self.name!r}"
             )
         try:
             return int(login), password
@@ -102,10 +106,29 @@ class HubConfig:
         object.__setattr__(self, "outbox_file", Path(self.outbox_file))
 
     def secret(self) -> str:
-        value = os.environ.get(self.secret_env)
+        value = read_env(self.secret_env)
         if not value:
-            raise ConfigError(f"set {self.secret_env} to the hub's shared secret")
+            raise ConfigError(
+                f"set {self.secret_env} (hub shared secret) in .env or the environment"
+            )
         return value
+
+
+@dataclass(frozen=True)
+class BacktestConfig:
+    years: float = 2.0
+    slippage_pips: float = 0.5
+    spread_pips: float | None = None  # None = read the live spread from MT5
+    default_spread_pips: float = 1.0  # used offline when spread_pips is not set
+    max_hold_bars: int = 100
+    data_dir: Path = Path("data")
+    trades_file: Path = Path("backtest_trades.csv")
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "data_dir", Path(self.data_dir))
+        object.__setattr__(self, "trades_file", Path(self.trades_file))
+        if self.years <= 0 or self.max_hold_bars < 1 or self.slippage_pips < 0:
+            raise ConfigError("backtest: years>0, max_hold_bars>=1, slippage_pips>=0 required")
 
 
 @dataclass(frozen=True)
@@ -116,6 +139,7 @@ class AppConfig:
     brokers: dict[str, BrokerProfile]
     state_file: Path
     hub: HubConfig | None = None
+    backtest: BacktestConfig = field(default_factory=BacktestConfig)
 
 
 def load_config(path: Path) -> AppConfig:
@@ -132,6 +156,7 @@ def load_config(path: Path) -> AppConfig:
             brokers=brokers,
             state_file=Path(raw.get("state_file", "seen_signals.json")),
             hub=HubConfig(**hub_raw) if hub_raw else None,
+            backtest=BacktestConfig(**raw.get("backtest", {})),
         )
     except (KeyError, TypeError) as exc:
         raise ConfigError(f"invalid config {path}: {exc}") from exc

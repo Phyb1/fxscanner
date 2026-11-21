@@ -104,3 +104,37 @@ def test_mt5_unsupported_timeframe() -> None:
     src = MT5Source(BrokerProfile(name="b", server="s"), StubMT5())
     with pytest.raises(DataError):
         src.get_candles("EURUSD", "H7", 5)
+
+
+class AttachStub(StubMT5):
+    def __init__(self, logged_in: bool = True) -> None:
+        super().__init__()
+        self.logged_in = logged_in
+
+    def account_info(self) -> object | None:
+        return object() if self.logged_in else None
+
+
+def test_attach_mode_sends_no_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("FX_MT5_LOGIN", raising=False)
+    monkeypatch.delenv("FX_MT5_PASSWORD", raising=False)
+    stub = AttachStub()
+    profile = BrokerProfile(
+        name="b", server="s", attach=True, terminal_path="C:/mt5/terminal64.exe"
+    )
+    MT5Source(profile, stub).connect()
+    assert stub.init_kwargs == {"timeout": 60000, "path": "C:/mt5/terminal64.exe"}
+
+
+def test_attach_mode_requires_a_logged_in_terminal() -> None:
+    profile = BrokerProfile(name="b", server="s", attach=True)
+    with pytest.raises(DataError, match="not logged in"):
+        MT5Source(profile, AttachStub(logged_in=False)).connect()
+
+
+def test_credential_mode_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FX_MT5_LOGIN", "7")
+    monkeypatch.setenv("FX_MT5_PASSWORD", "pw")
+    stub = StubMT5()
+    MT5Source(BrokerProfile(name="b", server="Srv"), stub).connect()
+    assert stub.init_kwargs["login"] == 7 and stub.init_kwargs["server"] == "Srv"

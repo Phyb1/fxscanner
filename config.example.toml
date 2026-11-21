@@ -25,6 +25,15 @@ stop_buffer_pips = 2.0    # covers spread; raise it for wide-spread symbols
 rr = 2.0
 max_stop_pips = 80.0
 
+[backtest]
+years = 2
+slippage_pips = 0.5
+# spread_pips = 1.0           # fixed spread for repeatable runs; omit to use the live MT5 spread
+default_spread_pips = 1.0     # used by --offline runs when spread_pips is not set
+max_hold_bars = 100           # close a trade at market after this many trigger-timeframe bars
+data_dir = "data"             # candles are cached here so reruns need no MT5
+trades_file = "backtest_trades.csv"
+
 [risk]
 balance = 1000.0
 risk_pct = 1.0
@@ -33,7 +42,8 @@ pip_value_per_lot = 10.0  # USD-quoted pairs; adjust for JPY/cross pairs
 # One profile per broker. Names are yours to choose; pick with --broker.
 # Fill in the exact server name shown in your MT5 login dialog.
 [brokers.fusion]
-server = "FILL-IN-FUSION-DEMO-SERVER"
+server = "FusionMarkets-Demo"
+# attach = true                 # use the account MT5 is already logged in to (no password needed)
 login_env = "FUSION_MT5_LOGIN"
 password_env = "FUSION_MT5_PASSWORD"
 symbol_suffix = ""
